@@ -7,7 +7,18 @@
   </PropertyGroup>
 
   <ItemGroup>
-      <PackageReference Include="TShock" Version="5.2.3" />
-        </ItemGroup>
+    <Reference Include="ModFramework">
+      <HintPath>Refference\ModFramework.dll</HintPath>
+    </Reference>
+    <Reference Include="OTAPI">
+      <HintPath>Refference\OTAPI.dll</HintPath>
+    </Reference>
+    <Reference Include="TerrariaServer">
+      <HintPath>Refference\TerrariaServer.dll</HintPath>
+    </Reference>
+    <Reference Include="TShockAPI">
+      <HintPath>Refference\TShockAPI.dll</HintPath>
+    </Reference>
+  </ItemGroup>
 
 </Project>
