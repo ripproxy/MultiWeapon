@@ -38,7 +38,7 @@ namespace MultiWeaponPlugin
                 return;
 
             // Deteksi paket yang menandakan serangan senjata.
-            if (args.MsgID == 41)
+            if ((int)args.MsgID == 41)
             {
                 int playerIndex = args.Msg.whoAmI;
                 TSPlayer tsPlayer = TShock.Players[playerIndex];
