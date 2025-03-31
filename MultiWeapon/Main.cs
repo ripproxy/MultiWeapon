@@ -79,7 +79,7 @@ namespace MultiWeaponPlugin
                         Vector2 velocity = new Vector2((float)Math.Cos(rotation), (float)Math.Sin(rotation)) * speed;
 
                         // Gunakan properti dari item di slot tambahan
-                        int projType = weaponItem.shoot > 0 ? weaponItem.shoot : 1; // Tipe projectile sesuai senjata
+                        int projType = weaponItem.shoot; // Tipe projectile sesuai senjata
                         int damage = weaponItem.damage;  // Damage sesuai senjata
                         float knockBack = weaponItem.knockBack; // KnockBack sesuai senjata
 
