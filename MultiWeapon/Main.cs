@@ -90,7 +90,7 @@ namespace MultiWeaponPlugin
                             knockBack = 2f;
 
                         // Buat projectile tambahan dengan properti dari senjata di slot ini.
-                        int projID = Projectile.NewProjectile(null, pos.X, pos.Y, velocityX, velocityY, projType, damage, knockBack, tsPlayer.Index);
+                        int projID = Projectile.NewProjectile(null, pos.X, pos.Y, velocity.X, velocity.Y, projType, damage, knockBack, tsPlayer.Index);
 
                         // Kirim data projectile ke seluruh pemain agar sinkron.
                         NetMessage.SendData((int)PacketTypes.ProjectileNew, -1, -1, NetworkText.FromLiteral(""), projID, 0f, 0f, 0f, 0);
