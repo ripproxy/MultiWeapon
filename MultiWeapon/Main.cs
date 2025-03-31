@@ -22,13 +22,13 @@ namespace MultiWeaponPlugin
 
         public override void Initialize()
         {
-            ServerApi.Hooks.GetData.Register(this, OnGetData);
+            ServerApi.Hooks.NetGetData.Register(this, OnGetData);
         }
 
         protected override void Dispose(bool disposing)
         {
             if (disposing)
-                ServerApi.Hooks.GetData.Deregister(this, OnGetData);
+                ServerApi.Hooks.NetGetData.Deregister(this, OnGetData);
             base.Dispose(disposing);
         }
 
