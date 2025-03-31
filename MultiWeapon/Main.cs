@@ -32,7 +32,7 @@ namespace MultiWeaponPlugin
             base.Dispose(disposing);
         }
 
-        private void OnGetData(GetDataEventArgs args)
+        private void OnGetData(object sender, GetDataEventArgs args)
         {
             if (args.Handled)
                 return;
