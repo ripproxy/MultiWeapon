@@ -70,13 +70,13 @@ namespace MultiWeaponPlugin
                     {
                         // Dapatkan posisi pemain sebagai titik awal projectile
                         Vector2 pos = tsPlayer.TPlayer.position;
-
-                        // Tentukan kecepatan projectile berdasarkan arah pemain.
-                        // Di sini kita gunakan kecepatan default, namun bisa disesuaikan.
+                        
                         float speed = 10f;
-                        float direction = tsPlayer.TPlayer.direction; // 1: kanan, -1: kiri
-                        float velX = speed * direction;
-                        float velY = 0f; // Projectile bergerak horizontal, bisa dimodifikasi jika perlu
+                        float rotation = tsPlayer.TPlayer.itemRotation;
+                        if (tsPlayer.TPlayer.direction == -1)
+                        rotation += (float)Math.PI;
+
+                        Vector2 velocity = new Vector2((float)Math.Cos(rotation), (float)Math.Sin(rotation)) * speed;
 
                         // Gunakan properti dari item di slot tambahan
                         int projType = weaponItem.shoot; // Tipe projectile sesuai senjata
