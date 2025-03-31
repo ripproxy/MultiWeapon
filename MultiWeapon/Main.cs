@@ -66,7 +66,7 @@ namespace MultiWeaponPlugin
 
                     Item weaponItem = tsPlayer.TPlayer.inventory[slot];
                     // Pastikan item tersebut valid dan memiliki damage > 0 serta memiliki properti shoot (tipe projectile)
-                    if (weaponItem != null && weaponItem.damage > 0 && weaponItem.shoot > 0)
+                    if (weaponItem != null && weaponItem.damage > 0)
                     {
                         // Dapatkan posisi pemain sebagai titik awal projectile
                         Vector2 pos = tsPlayer.TPlayer.position;
