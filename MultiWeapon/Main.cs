@@ -3,6 +3,7 @@ using Microsoft.Xna.Framework; // Untuk Vector2
 using TShockAPI;
 using Terraria;
 using TerrariaApi.Server;
+using Terraria.Localization;
 
 namespace MultiWeaponPlugin
 {
@@ -37,7 +38,7 @@ namespace MultiWeaponPlugin
                 return;
 
             // Deteksi paket yang menandakan serangan senjata.
-            if (args.MsgID == PacketTypes.ItemAnimation)
+            if (args.MsgID == 41)
             {
                 int playerIndex = args.Msg.whoAmI;
                 TSPlayer tsPlayer = TShock.Players[playerIndex];
@@ -92,7 +93,7 @@ namespace MultiWeaponPlugin
                         int projID = Projectile.NewProjectile(null, pos.X, pos.Y, velX, velY, projType, damage, knockBack, tsPlayer.Index);
 
                         // Kirim data projectile ke seluruh pemain agar sinkron.
-                        NetMessage.SendData((int)PacketTypes.ProjectileNew, -1, -1, "", projID, 0f, 0f, 0f, 0);
+                        NetMessage.SendData((int)PacketTypes.ProjectileNew, -1, -1, NetworkText.FromLiteral(""), projID, 0f, 0f, 0f, 0);
                     }
                 }
             }
