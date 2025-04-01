@@ -1,5 +1,5 @@
 using System;
-using Microsoft.Xna.Framework; // Untuk Vector2
+using Microsoft.Xna.Framework;
 using TShockAPI;
 using Terraria;
 using TerrariaApi.Server;
@@ -12,11 +12,11 @@ namespace MultiWeaponPlugin
     {
         public override string Name => "MultiWeaponPlugin";
         public override string Author => "YourName";
-        public override string Description => "Plugin yang mendeteksi serangan senjata di slot tertentu dan men-trigger serangan tambahan dari senjata di slot lain (misalnya, slot hotbar indeks 0, 1, 2).";
-        public override Version Version => new Version(1, 0, 0);
+        public override string Description => "Plugin untuk menyerang dengan 3 senjata sekaligus";
+        public override Version Version => new Version(1, 0, 1);
 
-        // Tentukan slot senjata yang akan dipantau. Di sini kita gunakan tiga slot pertama (array 0-indexed)
         private readonly int[] weaponSlots = { 0, 1, 2 };
+        private const int DefaultMeleeProj = 15; // ID proyektil untuk slash pedang dasar
 
         public MultiWeaponPlugin(Main game) : base(game) { }
 
@@ -34,81 +34,75 @@ namespace MultiWeaponPlugin
 
         private void OnGetData(GetDataEventArgs args)
         {
-            if (args.Handled)
+            if (args.Handled || (int)args.MsgID != 41)
                 return;
 
-            // Deteksi paket yang menandakan serangan senjata.
-            if ((int)args.MsgID == 41)
+            int playerIndex = args.Msg.whoAmI;
+            TSPlayer tsPlayer = TShock.Players[playerIndex];
+            if (tsPlayer?.Active != true)
+                return;
+
+            int selectedSlot = tsPlayer.TPlayer.selectedItem;
+            if (Array.IndexOf(weaponSlots, selectedSlot) == -1)
+                return;
+
+            Item triggerItem = tsPlayer.TPlayer.inventory[selectedSlot];
+            if (triggerItem?.damage <= 0)
+                return;
+
+            foreach (int slot in weaponSlots)
             {
-                int playerIndex = args.Msg.whoAmI;
-                TSPlayer tsPlayer = TShock.Players[playerIndex];
-                if (tsPlayer == null || !tsPlayer.Active)
-                    return;
+                if (slot == selectedSlot)
+                    continue;
 
-                // Ambil slot item yang dipakai pemain
-                int selectedSlot = tsPlayer.TPlayer.selectedItem;
+                Item weaponItem = tsPlayer.TPlayer.inventory[slot];
+                if (weaponItem?.damage <= 0)
+                    continue;
 
-                // Pastikan bahwa senjata utama (yang trigger) bisa berupa apa saja.
-                // Tetapi kita hanya akan melakukan trigger jika senjata utama berada di salah satu slot yang ditentukan.
-                if (Array.IndexOf(weaponSlots, selectedSlot) == -1)
-                    return;
+                // ========== PERUBAHAN UTAMA ==========
+                int projType = weaponItem.shoot;
+                bool isMelee = weaponItem.melee;
 
-                // Periksa item pada slot yang aktif
-                Item triggerItem = tsPlayer.TPlayer.inventory[selectedSlot];
-                if (triggerItem == null || triggerItem.damage <= 0)
-                    return; // Senjata trigger tidak valid (misalnya, bukan senjata)
+                // Handle senjata melee tanpa proyektil
+                if (isMelee && projType == 0)
+                    projType = DefaultMeleeProj;
 
-                // Untuk setiap slot di weaponSlots selain slot trigger, ambil properti dari item di slot tersebut.
-                foreach (int slot in weaponSlots)
-{
-    if (slot == selectedSlot)
-        continue;
+                // Skip jika tetap tidak ada proyektil
+                if (projType == 0)
+                    continue;
+                // =====================================
 
-    Item weaponItem = tsPlayer.TPlayer.inventory[slot];
-    if (weaponItem != null && weaponItem.damage > 0)
-    {
-        // Dapatkan tipe proyektil dan cek senjata melee
-        int projType = weaponItem.shoot;
-        bool isMelee = weaponItem.melee;
+                Vector2 pos = tsPlayer.TPlayer.Center;
+                float speed = 10f;
+                float rotation = tsPlayer.TPlayer.itemRotation;
+                if (tsPlayer.TPlayer.direction == -1)
+                    rotation += MathHelper.Pi;
 
-        // Jika senjata melee dan tidak ada proyektil, gunakan proyektil default
-        if (isMelee && projType == 0)
-        {
-            projType = 15; // ID proyektil untuk serangan pedang dasar
-        }
+                Vector2 velocity = new Vector2((float)Math.Cos(rotation), (float)Math.Sin(rotation)) * speed;
+                int damage = Math.Max(weaponItem.damage, 10);
+                float knockBack = Math.Max(weaponItem.knockBack, 2f);
 
-        // Jika tetap tidak ada proyektil, lewati
-        if (projType == 0)
-            continue;
-                    {
-                        // Dapatkan posisi pemain sebagai titik awal projectile
-                        Vector2 pos = tsPlayer.TPlayer.position;
-                        
-                        float speed = 10f;
-                        float rotation = tsPlayer.TPlayer.itemRotation;
-                        if (tsPlayer.TPlayer.direction == -1)
-                        rotation += (float)Math.PI;
+                // Generate proyektil
+                int projId = Projectile.NewProjectile(
+                    null,
+                    pos.X,
+                    pos.Y,
+                    velocity.X,
+                    velocity.Y,
+                    projType,
+                    damage,
+                    knockBack,
+                    tsPlayer.Index
+                );
 
-                        Vector2 velocity = new Vector2((float)Math.Cos(rotation), (float)Math.Sin(rotation)) * speed;
-
-                        // Gunakan properti dari item di slot tambahan
-                        int projType = weaponItem.shoot; // Tipe projectile sesuai senjata
-                        int damage = weaponItem.damage;  // Damage sesuai senjata
-                        float knockBack = weaponItem.knockBack; // KnockBack sesuai senjata
-
-                        // Pastikan nilai damage dan knockBack memiliki nilai minimal
-                        if (damage <= 0)
-                            damage = 10;
-                        if (knockBack <= 0)
-                            knockBack = 2f;
-
-                        // Buat projectile tambahan dengan properti dari senjata di slot ini.
-                        int projID = Projectile.NewProjectile(null, pos.X, pos.Y, velocity.X, velocity.Y, projType, damage, knockBack, tsPlayer.Index);
-
-                        // Kirim data projectile ke seluruh pemain agar sinkron.
-                        NetMessage.SendData((int)PacketTypes.ProjectileNew, -1, -1, NetworkText.FromLiteral(""), projID, 0f, 0f, 0f, 0);
-                    }
-                }
+                NetMessage.SendData(
+                    (int)PacketTypes.ProjectileNew,
+                    -1,
+                    -1,
+                    NetworkText.FromLiteral(""),
+                    projId,
+                    0f, 0f, 0f, 0
+                );
             }
         }
     }
