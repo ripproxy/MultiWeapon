@@ -1,8 +1,9 @@
 using System;
 using System.Collections.Generic;
+using System.IO;
 using Terraria;
+using Terraria.Localization;
 using Terraria.DataStructures;
-using Terraria.ID;
 using TerrariaApi.Server;
 using TShockAPI;
 using Microsoft.Xna.Framework;
@@ -23,21 +24,32 @@ public class MultiWeapon : TerrariaPlugin
         GetDataHandlers.PlayerAnimation.Register(OnPlayerAnimation);
     }
 
-    // Simpan posisi mouse pemain
     private void OnPlayerUpdate(object sender, GetDataHandlers.PlayerUpdateEventArgs args)
     {
         playerMousePositions[args.Player.Index] = args.Position;
     }
 
-    // Tangkap packet animasi serangan
     private void OnPlayerAnimation(object sender, GetDataHandlers.PlayerAnimationEventArgs args)
     {
-        if (args.AnimationType == 1) // Animasi serangan
+        using (var reader = new BinaryReader(args.Data))
         {
-            var player = TShock.Players[args.PlayerId];
-            if (player != null && playerMousePositions.TryGetValue(player.Index, out Vector2 mousePos))
+            try
             {
-                ExecuteMultiAttack(player, mousePos);
+                byte playerId = reader.ReadByte(); // Baca Player ID
+                byte animationType = reader.ReadByte();
+
+                if (animationType == 1) // Animasi serangan
+                {
+                    var player = TShock.Players[playerId];
+                    if (player != null && playerMousePositions.TryGetValue(player.Index, out Vector2 mousePos))
+                    {
+                        ExecuteMultiAttack(player, mousePos);
+                    }
+                }
+            }
+            catch (Exception ex)
+            {
+                TShock.Log.ConsoleError(ex.ToString());
             }
         }
         args.Handled = false;
@@ -63,32 +75,28 @@ public class MultiWeapon : TerrariaPlugin
 
     private void SimulateWeaponAttack(TSPlayer player, int slot, Item weapon, Vector2 mousePos)
     {
-        // 1. Simpan state asli
         int originalSlot = player.TPlayer.selectedItem;
-        Item originalHeldItem = player.TPlayer.HeldItem;
-
         try
         {
-            // 2. Ubah slot sementara
+            // 1. Ubah slot sementara
             player.TPlayer.selectedItem = slot;
-            player.TPlayer.HeldItem = weapon;
-
-            // 3. Hitung arah serangan
+            
+            // 2. Hitung arah serangan
             Vector2 attackDirection = (mousePos - player.TPlayer.Center).SafeNormalize(Vector2.UnitX);
             player.TPlayer.direction = attackDirection.X > 0 ? 1 : -1;
 
-            // 4. Eksekusi logika serangan
-            weapon.UseItem(
-                player.Index,
+            // 3. Eksekusi serangan menggunakan Projectile
+            Projectile.NewProjectile(
                 new EntitySource_ItemUse(player.TPlayer, weapon),
                 player.TPlayer.Center,
                 attackDirection * weapon.shootSpeed,
                 weapon.shoot,
                 weapon.damage,
-                weapon.knockBack
+                weapon.knockBack,
+                player.Index
             );
 
-            // 5. Update animasi ke client
+            // 4. Update animasi
             NetMessage.SendData(
                 41,
                 -1, -1,
@@ -100,9 +108,7 @@ public class MultiWeapon : TerrariaPlugin
         }
         finally
         {
-            // 6. Restore state asli
             player.TPlayer.selectedItem = originalSlot;
-            player.TPlayer.HeldItem = originalHeldItem;
         }
     }
 
