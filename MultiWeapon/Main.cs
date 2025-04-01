@@ -14,12 +14,12 @@ public class SyncedAttack : TerrariaPlugin
     public override void Initialize()
     {
         GetDataHandlers.PlayerUpdate.Register(this, OnPlayerUpdate);
-        GetDataHandlers.ReadData.Register(OnGetData, DataPassType.None); // Pakai ReadData
+        GetDataHandlers.ReadData.Register(OnGetData, DataPassType.None); // Handler untuk semua packet
     }
 
-    private void OnGetData(GetDataHandlers.ReadDataEventArgs args) // <– Ini yang benar
+    private void OnGetData(GetDataHandlers.ReadDataEventArgs args)
     {
-        if (args.MsgID != PacketTypes.PlayerItemAnimation) // Packet ID 41
+        if (args.MsgID != PacketTypes.PlayerAnimation) // Packet ID 41 (PlayerAnimation)
             return;
 
         using (var reader = new BinaryReader(new MemoryStream(args.Data)))
@@ -27,13 +27,15 @@ public class SyncedAttack : TerrariaPlugin
             try
             {
                 int playerId = reader.ReadByte();
-                short slot = reader.ReadInt16();
                 byte animationType = reader.ReadByte();
 
-                if (animationType == 1) // Start item use
+                if (animationType == 1) // Animasi mulai (misalnya ayunan senjata)
                 {
                     var player = TShock.Players[playerId];
-                    ProcessAttack(player, slot);
+                    if (player != null)
+                    {
+                        ProcessAttack(player, player.TPlayer.selectedItem);
+                    }
                 }
             }
             catch (Exception ex)
