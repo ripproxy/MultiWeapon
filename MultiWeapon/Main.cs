@@ -31,7 +31,7 @@ public class SyncedAttack : TerrariaPlugin
         }
     }
 
-    private void OnItemAnimation(object sender, PlayerItemAnimationEventArgs args)
+    private void OnItemAnimation(PlayerItemAnimationEventArgs args)
     {
         if (args.ItemAnimationType != 1 || !attackDirections.ContainsKey(args.Player.Index))
             return;
