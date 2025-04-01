@@ -1,5 +1,6 @@
 using System;
 using System.Collections.Generic;
+using System.IO;
 using Terraria;
 using TerrariaApi.Server;
 using TShockAPI;
@@ -13,23 +14,44 @@ public class SyncedAttack : TerrariaPlugin
     public override void Initialize()
     {
         GetDataHandlers.PlayerUpdate.Register(this, OnPlayerUpdate);
-        GetDataHandlers.PlayerItemAnimation.Register(this, OnPlayerItemAnimation);
+        GetDataHandlers.ReadData.Register(OnGetData, DataPassType.None); // Pakai ReadData
     }
 
-    private void OnPlayerItemAnimation(object sender, GetDataHandlers.PlayerItemAnimationEventArgs args)
+    private void OnGetData(GetDataHandlers.ReadDataEventArgs args) // <– Ini yang benar
     {
-        var player = TShock.Players[args.PlayerId];
-        if (player == null || args.Type != 1)
+        if (args.MsgID != PacketTypes.PlayerItemAnimation) // Packet ID 41
             return;
 
-        if (!attackDirections.TryGetValue(args.PlayerId, out Vector2 mousePos))
+        using (var reader = new BinaryReader(new MemoryStream(args.Data)))
+        {
+            try
+            {
+                int playerId = reader.ReadByte();
+                short slot = reader.ReadInt16();
+                byte animationType = reader.ReadByte();
+
+                if (animationType == 1) // Start item use
+                {
+                    var player = TShock.Players[playerId];
+                    ProcessAttack(player, slot);
+                }
+            }
+            catch (Exception ex)
+            {
+                TShock.Log.ConsoleError(ex.ToString());
+            }
+        }
+    }
+
+    private void ProcessAttack(TSPlayer player, int mainSlot)
+    {
+        if (player == null || mainSlot < 0 || mainSlot > 2)
             return;
 
-        int mainSlot = player.TPlayer.selectedItem;
-        if (mainSlot < 0 || mainSlot > 2)
+        if (!attackDirections.TryGetValue(player.Index, out Vector2 mousePos))
             return;
 
-        // Logika serangan 3 senjata
+        // Proses 3 slot senjata
         for (int slot = 0; slot < 3; slot++)
         {
             if (slot == mainSlot)
