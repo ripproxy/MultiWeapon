@@ -60,13 +60,26 @@ namespace MultiWeaponPlugin
 
                 // Untuk setiap slot di weaponSlots selain slot trigger, ambil properti dari item di slot tersebut.
                 foreach (int slot in weaponSlots)
-                {
-                    if (slot == selectedSlot)
-                        continue; // Lewati senjata trigger
+{
+    if (slot == selectedSlot)
+        continue;
 
-                    Item weaponItem = tsPlayer.TPlayer.inventory[slot];
-                    // Pastikan item tersebut valid dan memiliki damage > 0 serta memiliki properti shoot (tipe projectile)
-                    if (weaponItem != null && weaponItem.damage > 0)
+    Item weaponItem = tsPlayer.TPlayer.inventory[slot];
+    if (weaponItem != null && weaponItem.damage > 0)
+    {
+        // Dapatkan tipe proyektil dan cek senjata melee
+        int projType = weaponItem.shoot;
+        bool isMelee = weaponItem.melee;
+
+        // Jika senjata melee dan tidak ada proyektil, gunakan proyektil default
+        if (isMelee && projType == 0)
+        {
+            projType = 15; // ID proyektil untuk serangan pedang dasar
+        }
+
+        // Jika tetap tidak ada proyektil, lewati
+        if (projType == 0)
+            continue;
                     {
                         // Dapatkan posisi pemain sebagai titik awal projectile
                         Vector2 pos = tsPlayer.TPlayer.position;
