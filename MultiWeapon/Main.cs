@@ -1,6 +1,7 @@
 using Terraria;
 using TerrariaApi.Server;
 using TShockAPI;
+using TShockAPI.GetDataHandlers;
 using TShockAPI.Hooks;
 using Microsoft.Xna.Framework;
 
@@ -19,7 +20,7 @@ public class SyncedAttack : TerrariaPlugin
     public override void Initialize()
     {
         GetDataHandlers.PlayerUpdate.Register(this, OnPlayerUpdate);
-        PlayerHooks.PlayerItemAnimation += OnItemAnimation;
+        GetDataHandlers.PlayerItemAnimation.Register(this, OnPlayerItemAnimation);
     }
 
     private void OnPlayerUpdate(object sender, GetDataHandlers.PlayerUpdateEventArgs args)
@@ -31,7 +32,7 @@ public class SyncedAttack : TerrariaPlugin
         }
     }
 
-    private void OnItemAnimation(PlayerItemAnimationEventArgs args)
+    private void OnPlayerItemAnimation(GetDataHandlers.PlayerItemAnimationEventArgs args)
     {
         if (args.ItemAnimationType != 1 || !attackDirections.ContainsKey(args.Player.Index))
             return;
@@ -115,7 +116,7 @@ public class SyncedAttack : TerrariaPlugin
         if (disposing)
         {
             GetDataHandlers.PlayerUpdate.UnRegister(this, OnPlayerUpdate);
-            PlayerHooks.PlayerItemAnimation -= OnItemAnimation;
+            GetDataHandlers.PlayerItemAnimation.UnRegister(this, OnPlayerItemAnimation);
         }
         base.Dispose(disposing);
     }
