@@ -96,11 +96,11 @@ public class SyncedAttack : TerrariaPlugin
             
             // Paksa update animasi
             NetMessage.SendData(
-                (int)PacketTypes.PlayerItemAnimation, // <-- Perbaikan 3: Gunakan packet yang valid
-                -1, -1,
-                NetworkText.Empty,
-                player.Index,
-                slot,
+                (int)PacketTypes.41; // <-- Perbaikan 3: Gunakan packet yang valid
+                -1, -1;
+                NetworkText.Empty;
+                player.Index;
+                slot;
                 1
             );
         }
