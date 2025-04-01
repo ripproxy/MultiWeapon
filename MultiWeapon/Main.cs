@@ -1,6 +1,5 @@
 using System;
 using System.Collections.Generic;
-using System.IO;
 using Terraria;
 using TerrariaApi.Server;
 using TShockAPI;
@@ -14,44 +13,23 @@ public class SyncedAttack : TerrariaPlugin
     public override void Initialize()
     {
         GetDataHandlers.PlayerUpdate.Register(this, OnPlayerUpdate);
-        GetDataHandlers.ReadData.Register(OnGetData, DataPassType.None); // Pakai ReadData
+        GetDataHandlers.PlayerItemAnimation.Register(this, OnPlayerItemAnimation);
     }
 
-    private void OnGetData(GetDataHandlers.ReadDataEventArgs args)
+    private void OnPlayerItemAnimation(object sender, GetDataHandlers.PlayerItemAnimationEventArgs args)
     {
-        if (args.MsgID != PacketTypes.PlayerItemAnimation) // Packet 41
+        var player = TShock.Players[args.PlayerId];
+        if (player == null || args.Type != 1)
             return;
 
-        using (var reader = new BinaryReader(new MemoryStream(args.Msg.readBuffer, args.Index, args.Length)))
-        {
-            try
-            {
-                int playerId = reader.ReadByte();
-                short itemSlot = reader.ReadInt16();
-                byte animationType = reader.ReadByte();
-
-                if (animationType == 1) // Start item use
-                {
-                    var player = TShock.Players[playerId];
-                    ProcessAttack(player, itemSlot);
-                }
-            }
-            catch (Exception ex)
-            {
-                TShock.Log.ConsoleError(ex.ToString());
-            }
-        }
-    }
-
-    private void ProcessAttack(TSPlayer player, int mainSlot)
-    {
-        if (player == null || mainSlot < 0 || mainSlot > 2)
+        if (!attackDirections.TryGetValue(args.PlayerId, out Vector2 mousePos))
             return;
 
-        if (!attackDirections.TryGetValue(player.Index, out Vector2 mousePos))
+        int mainSlot = player.TPlayer.selectedItem;
+        if (mainSlot < 0 || mainSlot > 2)
             return;
 
-        // Proses 3 slot senjata
+        // Logika serangan 3 senjata
         for (int slot = 0; slot < 3; slot++)
         {
             if (slot == mainSlot)
