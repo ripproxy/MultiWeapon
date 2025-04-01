@@ -3,6 +3,7 @@ using System.Collections.Generic;
 using Terraria;
 using Terraria.DataStructures;
 using Terraria.ID;
+using Terraria.Localization; // Ditambahkan untuk NetworkText
 using TerrariaApi.Server;
 using TShockAPI;
 using Microsoft.Xna.Framework;
@@ -14,7 +15,7 @@ public class MultiWeapon : TerrariaPlugin
 
     public MultiWeapon(Main game) : base(game) { }
     public override string Name => "MultiWeapon";
-    public override Version Version => new Version(3, 0);
+    public override Version Version => new Version(3, 1);
     public override string Author => "YourName";
 
     public override void Initialize()
@@ -25,7 +26,6 @@ public class MultiWeapon : TerrariaPlugin
 
     private void OnPlayerUpdate(object sender, GetDataHandlers.PlayerUpdateEventArgs args)
     {
-        // Simpan posisi mouse pemain
         playerMousePositions[args.Player.Index] = args.Position;
     }
 
@@ -38,7 +38,7 @@ public class MultiWeapon : TerrariaPlugin
                 byte playerId = reader.ReadByte();
                 byte animationType = reader.ReadByte();
 
-                if (animationType == 1) // Pastikan hanya trigger saat serangan
+                if (animationType == 1)
                 {
                     var player = TShock.Players[playerId];
                     if (player != null && playerMousePositions.TryGetValue(player.Index, out Vector2 mousePos))
@@ -59,7 +59,6 @@ public class MultiWeapon : TerrariaPlugin
     {
         int mainSlot = player.TPlayer.selectedItem;
 
-        // Proses 3 slot secara paralel
         for (int slot = 0; slot < 3; slot++)
         {
             if (slot == mainSlot)
@@ -85,7 +84,6 @@ public class MultiWeapon : TerrariaPlugin
             Vector2 attackDirection = (mousePos - player.TPlayer.Center).SafeNormalize(Vector2.UnitX);
             player.TPlayer.direction = attackDirection.X > 0 ? 1 : -1;
 
-            // Hitung area serangan berdasarkan ukuran senjata
             Rectangle hitbox = new Rectangle(
                 (int)(player.TPlayer.Center.X - weapon.width),
                 (int)(player.TPlayer.Center.Y - weapon.height),
@@ -93,7 +91,6 @@ public class MultiWeapon : TerrariaPlugin
                 weapon.height * 2
             );
 
-            // Beri damage ke semua NPC dalam area
             foreach (NPC npc in Main.npc)
             {
                 if (npc.active && !npc.friendly && hitbox.Intersects(npc.getRect()))
@@ -107,11 +104,10 @@ public class MultiWeapon : TerrariaPlugin
                 }
             }
 
-            // Paksa update animasi ke semua client
             NetMessage.SendData(
                 (int)PacketTypes.PlayerAnimation,
                 -1, -1,
-                NetworkText.Empty,
+                NetworkText.Empty, // Error CS0103 teratasi
                 player.Index,
                 slot,
                 1
@@ -132,7 +128,6 @@ public class MultiWeapon : TerrariaPlugin
             Vector2 attackDirection = (mousePos - player.TPlayer.Center).SafeNormalize(Vector2.UnitX);
             player.TPlayer.direction = attackDirection.X > 0 ? 1 : -1;
 
-            // Tembakkan projectile
             Projectile.NewProjectile(
                 new EntitySource_ItemUse(player.TPlayer, weapon),
                 player.TPlayer.Center,
@@ -143,11 +138,10 @@ public class MultiWeapon : TerrariaPlugin
                 player.Index
             );
 
-            // Update animasi
             NetMessage.SendData(
                 (int)PacketTypes.PlayerAnimation,
                 -1, -1,
-                NetworkText.Empty,
+                NetworkText.Empty, // Error CS0103 teratasi
                 player.Index,
                 slot,
                 1
@@ -161,9 +155,10 @@ public class MultiWeapon : TerrariaPlugin
 
     private bool IsValidWeapon(Item item)
     {
+        // Error CS1061 teratasi: ganti 'thrown' dengan kriteria valid
         return item.active && 
                item.damage > 0 && 
-               (item.melee || item.ranged || item.magic || item.summon || item.thrown);
+               (item.melee || item.ranged || item.magic || item.summon);
     }
 
     protected override void Dispose(bool disposing)
