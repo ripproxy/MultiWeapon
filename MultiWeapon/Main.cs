@@ -23,23 +23,31 @@ public class SyncedAttack : TerrariaPlugin
         GetDataHandlers.PlayerAnimation.Register(OnPlayerAnimation);
     }
 
-    // Handler untuk PlayerUpdate (wajib ada)
+    // Handler untuk PlayerUpdate (untuk mengambil posisi mouse)
     private void OnPlayerUpdate(object sender, GetDataHandlers.PlayerUpdateEventArgs args)
     {
-        // Implementasi sesuai kebutuhan
+        try
+        {
+            // Simpan posisi mouse pemain
+            attackDirections[args.Player.Index] = args.Position;
+        }
+        catch (Exception ex)
+        {
+            TShock.Log.ConsoleError(ex.ToString());
+        }
     }
 
     // Handler untuk PlayerAnimation (Packet 41)
     private void OnPlayerAnimation(object sender, GetDataHandlers.PlayerAnimationEventArgs args)
     {
-        using (var reader = new BinaryReader(new MemoryStream(args.Data)))
+        using (var reader = new BinaryReader(args.Data)) // <-- Perbaikan 1: Tidak perlu new MemoryStream
         {
             try
             {
                 int playerId = reader.ReadByte();
                 byte animationType = reader.ReadByte();
 
-                if (animationType == 1)
+                if (animationType == 1) // Animasi serangan
                 {
                     var player = TShock.Players[playerId];
                     if (player != null)
@@ -61,6 +69,9 @@ public class SyncedAttack : TerrariaPlugin
         if (player == null || mainSlot < 0 || mainSlot > 2)
             return;
 
+        if (!attackDirections.TryGetValue(player.Index, out Vector2 mousePos))
+            return;
+
         // Proses 3 slot senjata
         for (int slot = 0; slot < 3; slot++)
         {
@@ -70,28 +81,27 @@ public class SyncedAttack : TerrariaPlugin
             Item weapon = player.TPlayer.inventory[slot];
             if (IsValidWeapon(weapon))
             {
-                SyncAttackDirection(player, slot, weapon);
+                SyncAttackDirection(player, slot, weapon, mousePos);
             }
         }
     }
 
-    private void SyncAttackDirection(TSPlayer player, int slot, Item weapon)
+    private void SyncAttackDirection(TSPlayer player, int slot, Item weapon, Vector2 mousePos)
     {
         int originalSlot = player.TPlayer.selectedItem;
         try
         {
+            // Perbaikan 2: Ubah selectedItem, bukan HeldItem
             player.TPlayer.selectedItem = slot;
             
-            // Gunakan item dengan cara yang valid
-            player.TPlayer.HeldItem = weapon;
-            player.TPlayer.ItemCheck();
-
-            // Update animasi ke client
+            // Paksa update animasi
             NetMessage.SendData(
-                (int)PacketTypes.PlayerControls,
+                (int)PacketTypes.PlayerItemAnimation, // <-- Perbaikan 3: Gunakan packet yang valid
                 -1, -1,
                 NetworkText.Empty,
-                player.Index
+                player.Index,
+                slot,
+                1
             );
         }
         finally
