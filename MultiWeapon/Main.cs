@@ -1,51 +1,57 @@
 using System;
 using System.Collections.Generic;
+using System.IO;
 using Terraria;
 using TerrariaApi.Server;
 using TShockAPI;
-using TShockAPI.Hooks;
 using Microsoft.Xna.Framework;
 
 [ApiVersion(2, 1)]
 public class SyncedAttack : TerrariaPlugin
 {
     private Dictionary<int, Vector2> attackDirections = new Dictionary<int, Vector2>();
-    
-    public override string Author => "Nama Anda";
-    public override string Description => "3 senjata dengan arah serangan sama";
-    public override string Name => "SyncedAttack";
-    public override Version Version => new Version(1, 3, 0);
-
-    public SyncedAttack(Main game) : base(game) { }
 
     public override void Initialize()
     {
         GetDataHandlers.PlayerUpdate.Register(this, OnPlayerUpdate);
-        GetDataHandlers.PlayerItemAnimation.Register(this, OnItemAnimation);
+        GetDataHandlers.ReadData.Register(OnGetData, DataPassType.None); // Pakai ReadData
     }
 
-    private void OnPlayerUpdate(object sender, GetDataHandlers.PlayerUpdateEventArgs args)
+    private void OnGetData(GetDataHandlers.ReadDataEventArgs args)
     {
-        var player = TShock.Players[args.PlayerId];
-        if (player == null || !args.Control.IsUsingItem)
+        if (args.MsgID != PacketTypes.PlayerItemAnimation) // Packet 41
             return;
 
-        attackDirections[args.PlayerId] = new Vector2(args.MouseX, args.MouseY);
+        using (var reader = new BinaryReader(new MemoryStream(args.Msg.readBuffer, args.Index, args.Length)))
+        {
+            try
+            {
+                int playerId = reader.ReadByte();
+                short itemSlot = reader.ReadInt16();
+                byte animationType = reader.ReadByte();
+
+                if (animationType == 1) // Start item use
+                {
+                    var player = TShock.Players[playerId];
+                    ProcessAttack(player, itemSlot);
+                }
+            }
+            catch (Exception ex)
+            {
+                TShock.Log.ConsoleError(ex.ToString());
+            }
+        }
     }
 
-    private void OnItemAnimation(GetDataHandlers.PlayerItemAnimationEventArgs args)
+    private void ProcessAttack(TSPlayer player, int mainSlot)
     {
-        var player = TShock.Players[args.PlayerId];
-        if (player == null || args.Type != 1)
+        if (player == null || mainSlot < 0 || mainSlot > 2)
             return;
 
-        if (!attackDirections.TryGetValue(args.PlayerId, out Vector2 mousePos))
+        if (!attackDirections.TryGetValue(player.Index, out Vector2 mousePos))
             return;
 
-        int mainSlot = player.TPlayer.selectedItem;
-        if (mainSlot < 0 || mainSlot > 2)
-            return;
-
+        // Proses 3 slot senjata
         for (int slot = 0; slot < 3; slot++)
         {
             if (slot == mainSlot)
