@@ -14,14 +14,12 @@ public class SyncedAttack : TerrariaPlugin
     public override void Initialize()
     {
         GetDataHandlers.PlayerUpdate.Register(this, OnPlayerUpdate);
-        GetDataHandlers.ReadData.Register(OnGetData, DataPassType.None); // Handler untuk semua packet
+        GetDataHandlers.PlayerAnimation.Register(this, OnPlayerAnimation); // Handler khusus untuk Packet 41
     }
 
-    private void OnGetData(GetDataHandlers.ReadDataEventArgs args)
+    // Handler untuk Packet 41 (PlayerAnimation)
+    private void OnPlayerAnimation(object sender, GetDataHandlers.PlayerAnimationEventArgs args)
     {
-        if (args.MsgID != PacketTypes.PlayerAnimation) // Packet ID 41 (PlayerAnimation)
-            return;
-
         using (var reader = new BinaryReader(new MemoryStream(args.Data)))
         {
             try
@@ -43,6 +41,7 @@ public class SyncedAttack : TerrariaPlugin
                 TShock.Log.ConsoleError(ex.ToString());
             }
         }
+        args.Handled = false; // Biarkan packet diproses lebih lanjut
     }
 
     private void ProcessAttack(TSPlayer player, int mainSlot)
@@ -114,8 +113,13 @@ public class SyncedAttack : TerrariaPlugin
         if (disposing)
         {
             GetDataHandlers.PlayerUpdate.UnRegister(this, OnPlayerUpdate);
-            GetDataHandlers.PlayerItemAnimation.UnRegister(this, OnItemAnimation);
+            GetDataHandlers.PlayerAnimation.UnRegister(this, OnPlayerAnimation); // Unregister handler yang benar
         }
         base.Dispose(disposing);
     }
+
+    // Wajib diimplementasikan (constructor dan metadata)
+    public SyncedAttack(Main game) : base(game) { }
+    public override string Name => "SyncedAttack";
+    public override Version Version => new Version(1, 0);
 }
