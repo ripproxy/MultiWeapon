@@ -1,9 +1,8 @@
 using System;
 using System.Collections.Generic;
-using System.IO;
 using Terraria;
-using Terraria.Localization;
 using Terraria.DataStructures;
+using Terraria.ID;
 using TerrariaApi.Server;
 using TShockAPI;
 using Microsoft.Xna.Framework;
@@ -15,7 +14,7 @@ public class MultiWeapon : TerrariaPlugin
 
     public MultiWeapon(Main game) : base(game) { }
     public override string Name => "MultiWeapon";
-    public override Version Version => new Version(1, 3);
+    public override Version Version => new Version(3, 0);
     public override string Author => "YourName";
 
     public override void Initialize()
@@ -26,6 +25,7 @@ public class MultiWeapon : TerrariaPlugin
 
     private void OnPlayerUpdate(object sender, GetDataHandlers.PlayerUpdateEventArgs args)
     {
+        // Simpan posisi mouse pemain
         playerMousePositions[args.Player.Index] = args.Position;
     }
 
@@ -35,10 +35,10 @@ public class MultiWeapon : TerrariaPlugin
         {
             try
             {
-                byte playerId = reader.ReadByte(); // Baca Player ID
+                byte playerId = reader.ReadByte();
                 byte animationType = reader.ReadByte();
 
-                if (animationType == 1) // Animasi serangan
+                if (animationType == 1) // Pastikan hanya trigger saat serangan
                 {
                     var player = TShock.Players[playerId];
                     if (player != null && playerMousePositions.TryGetValue(player.Index, out Vector2 mousePos))
@@ -58,8 +58,8 @@ public class MultiWeapon : TerrariaPlugin
     private void ExecuteMultiAttack(TSPlayer player, Vector2 mousePos)
     {
         int mainSlot = player.TPlayer.selectedItem;
-        Item mainWeapon = player.TPlayer.inventory[mainSlot];
 
+        // Proses 3 slot secara paralel
         for (int slot = 0; slot < 3; slot++)
         {
             if (slot == mainSlot)
@@ -68,24 +68,71 @@ public class MultiWeapon : TerrariaPlugin
             Item weapon = player.TPlayer.inventory[slot];
             if (IsValidWeapon(weapon))
             {
-                SimulateWeaponAttack(player, slot, weapon, mousePos);
+                if (weapon.melee)
+                    SimulateMeleeAttack(player, slot, weapon, mousePos);
+                else
+                    SimulateProjectileAttack(player, slot, weapon, mousePos);
             }
         }
     }
 
-    private void SimulateWeaponAttack(TSPlayer player, int slot, Item weapon, Vector2 mousePos)
+    private void SimulateMeleeAttack(TSPlayer player, int slot, Item weapon, Vector2 mousePos)
     {
         int originalSlot = player.TPlayer.selectedItem;
         try
         {
-            // 1. Ubah slot sementara
             player.TPlayer.selectedItem = slot;
-            
-            // 2. Hitung arah serangan
             Vector2 attackDirection = (mousePos - player.TPlayer.Center).SafeNormalize(Vector2.UnitX);
             player.TPlayer.direction = attackDirection.X > 0 ? 1 : -1;
 
-            // 3. Eksekusi serangan menggunakan Projectile
+            // Hitung area serangan berdasarkan ukuran senjata
+            Rectangle hitbox = new Rectangle(
+                (int)(player.TPlayer.Center.X - weapon.width),
+                (int)(player.TPlayer.Center.Y - weapon.height),
+                weapon.width * 2,
+                weapon.height * 2
+            );
+
+            // Beri damage ke semua NPC dalam area
+            foreach (NPC npc in Main.npc)
+            {
+                if (npc.active && !npc.friendly && hitbox.Intersects(npc.getRect()))
+                {
+                    npc.StrikeNPC(
+                        weapon.damage,
+                        weapon.knockBack,
+                        player.TPlayer.direction,
+                        crit: false
+                    );
+                }
+            }
+
+            // Paksa update animasi ke semua client
+            NetMessage.SendData(
+                (int)PacketTypes.PlayerAnimation,
+                -1, -1,
+                NetworkText.Empty,
+                player.Index,
+                slot,
+                1
+            );
+        }
+        finally
+        {
+            player.TPlayer.selectedItem = originalSlot;
+        }
+    }
+
+    private void SimulateProjectileAttack(TSPlayer player, int slot, Item weapon, Vector2 mousePos)
+    {
+        int originalSlot = player.TPlayer.selectedItem;
+        try
+        {
+            player.TPlayer.selectedItem = slot;
+            Vector2 attackDirection = (mousePos - player.TPlayer.Center).SafeNormalize(Vector2.UnitX);
+            player.TPlayer.direction = attackDirection.X > 0 ? 1 : -1;
+
+            // Tembakkan projectile
             Projectile.NewProjectile(
                 new EntitySource_ItemUse(player.TPlayer, weapon),
                 player.TPlayer.Center,
@@ -96,9 +143,9 @@ public class MultiWeapon : TerrariaPlugin
                 player.Index
             );
 
-            // 4. Update animasi
+            // Update animasi
             NetMessage.SendData(
-                41,
+                (int)PacketTypes.PlayerAnimation,
                 -1, -1,
                 NetworkText.Empty,
                 player.Index,
@@ -116,9 +163,7 @@ public class MultiWeapon : TerrariaPlugin
     {
         return item.active && 
                item.damage > 0 && 
-               item.pick == 0 && 
-               item.axe == 0 && 
-               item.hammer == 0;
+               (item.melee || item.ranged || item.magic || item.summon || item.thrown);
     }
 
     protected override void Dispose(bool disposing)
