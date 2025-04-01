@@ -1,7 +1,7 @@
 using Terraria;
 using TerrariaApi.Server;
 using TShockAPI;
-using TshockAPI.Hooks;
+using TShockAPI.Hooks;
 using Microsoft.Xna.Framework;
 
 [ApiVersion(2, 1)]
@@ -115,7 +115,7 @@ public class SyncedAttack : TerrariaPlugin
         if (disposing)
         {
             GetDataHandlers.PlayerUpdate.UnRegister(this, OnPlayerUpdate);
-            PlayerHooks.PlayerItemAnimation -= OnItemAnimation
+            PlayerHooks.PlayerItemAnimation -= OnItemAnimation;
         }
         base.Dispose(disposing);
     }
