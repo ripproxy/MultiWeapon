@@ -1,4 +1,9 @@
-using System; using Microsoft.Xna.Framework; using Terraria; using TerrariaApi.Server; using TShockAPI; using Terraria.ID;
+using System; 
+using Microsoft.Xna.Framework; 
+using Terraria; 
+using TerrariaApi.Server; 
+using TShockAPI; 
+using Terraria.ID;
 
 namespace MultiWeaponPlugin { [ApiVersion(2, 1)] public class MultiWeaponPlugin : TerrariaPlugin { public override string Name => "MultiWeaponPlugin"; public override string Author => "ChatGPT"; public override string Description => "Slot 0, 1, dan 2 menyerang bersamaan tanpa delay dengan properti senjata masing-masing."; public override Version Version => new Version(1, 0, 0);
 
