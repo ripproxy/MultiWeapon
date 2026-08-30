@@ -2,9 +2,10 @@
 
 Plugin for TShock that lets you attack with multiple hotbar weapons at the same time.
 
-## Features (v1.3.0)
+## Features (v1.4.0)
 - Attack simultaneously from multiple slots (default: slot 0 + 1 + 2)
-- **Individual cooldown** per weapon based on its `useTime`
+- **Flexible cooldown mode** (Self / Slot0 / Held)
+- Individual or shared cooldown
 - **Mana check & consumption** per weapon
 - **Ammo check & consumption** per weapon
 - Projectile follows player aim / item rotation
@@ -31,6 +32,7 @@ Plugin for TShock that lets you attack with multiple hotbar weapons at the same 
   "CheckMana": true,
   "CheckAmmo": true,
   "UsePlayerAim": true,
+  "CooldownMode": "Self",
   "CooldownMultiplier": 1.0
 }
 ```
@@ -43,7 +45,16 @@ Plugin for TShock that lets you attack with multiple hotbar weapons at the same 
 | `CheckMana` | Check & consume mana per weapon | `true` |
 | `CheckAmmo` | Check & consume ammo per weapon | `true` |
 | `UsePlayerAim` | Projectiles follow player aim | `true` |
-| `CooldownMultiplier` | Multiply each weapon's useTime | `1.0` |
+| `CooldownMode` | `Self` / `Slot0` / `Held` | `Self` |
+| `CooldownMultiplier` | Multiply cooldown | `1.0` |
+
+### CooldownMode explanation
+
+| Value | Behavior |
+|-------|----------|
+| `Self` | Each extra weapon uses its own `useTime` (independent) |
+| `Slot0` | All extra slots follow the cooldown of the item in **slot 0** |
+| `Held` | All extra slots follow the cooldown of the **currently held** item |
 
 ## Commands
 - `/mwreload` — Reload config (permission: `multiweapon.reload`)
