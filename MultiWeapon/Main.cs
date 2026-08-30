@@ -1,7 +1,10 @@
 using System;
 using System.Collections.Generic;
+using System.IO;
 using Microsoft.Xna.Framework;
+using Newtonsoft.Json;
 using Terraria;
+using Terraria.ID;
 using TerrariaApi.Server;
 using TShockAPI;
 
@@ -10,20 +13,26 @@ public class MultiWeapon : TerrariaPlugin
 {
     public override string Name => "MultiWeapon";
     public override string Author => "ripproxy";
-    public override string Description => "Memungkinkan serangan bersamaan dari slot 0, 1, dan 2 dengan cooldown masing-masing.";
-    public override Version Version => new Version(1, 2, 0);
+    public override string Description => "Serangan bersamaan dari beberapa slot hotbar dengan cooldown, mana, dan ammo per item.";
+    public override Version Version => new Version(1, 3, 0);
 
-    // Cooldown per player: Key = player.Index, Value = array[3] untuk slot 0,1,2
+    private static string ConfigPath => Path.Combine(TShock.SavePath, "MultiWeapon.json");
+    private Config _config = new();
+
+    // Cooldown per player per slot
     private readonly Dictionary<int, int[]> _cooldowns = new();
 
-    public MultiWeapon(Main game) : base(game)
-    {
-    }
+    public MultiWeapon(Main game) : base(game) { }
 
     public override void Initialize()
     {
+        LoadConfig();
         ServerApi.Hooks.GameUpdate.Register(this, OnGameUpdate);
-        ServerApi.Hooks.ServerLeave.Register(this, OnPlayerLeave); // bersihkan data saat player keluar
+        ServerApi.Hooks.ServerLeave.Register(this, OnPlayerLeave);
+        Commands.ChatCommands.Add(new Command("multiweapon.reload", ReloadCommand, "mwreload")
+        {
+            HelpText = "Reload MultiWeapon config"
+        });
     }
 
     protected override void Dispose(bool disposing)
@@ -41,8 +50,38 @@ public class MultiWeapon : TerrariaPlugin
         _cooldowns.Remove(args.Who);
     }
 
+    private void ReloadCommand(CommandArgs args)
+    {
+        LoadConfig();
+        args.Player.SendSuccessMessage("[MultiWeapon] Config reloaded.");
+    }
+
+    private void LoadConfig()
+    {
+        try
+        {
+            if (File.Exists(ConfigPath))
+            {
+                string json = File.ReadAllText(ConfigPath);
+                _config = JsonConvert.DeserializeObject<Config>(json) ?? new Config();
+            }
+            else
+            {
+                _config = new Config();
+                File.WriteAllText(ConfigPath, JsonConvert.SerializeObject(_config, Formatting.Indented));
+            }
+        }
+        catch (Exception ex)
+        {
+            TShock.Log.ConsoleError("[MultiWeapon] Failed to load config: " + ex.Message);
+            _config = new Config();
+        }
+    }
+
     private void OnGameUpdate(EventArgs args)
     {
+        if (!_config.Enabled) return;
+
         foreach (TSPlayer? tsPlayer in TShock.Players)
         {
             if (tsPlayer == null || !tsPlayer.Active || tsPlayer.TPlayer == null)
@@ -51,58 +90,75 @@ public class MultiWeapon : TerrariaPlugin
             Player player = tsPlayer.TPlayer;
             int index = tsPlayer.Index;
 
-            // Inisialisasi cooldown array jika belum ada
             if (!_cooldowns.TryGetValue(index, out int[] cds))
             {
-                cds = new int[3];
+                cds = new int[10]; // support more slots if needed
                 _cooldowns[index] = cds;
             }
 
-            // Kurangi semua cooldown setiap frame
-            for (int i = 0; i < 3; i++)
+            // Turunkan cooldown setiap frame
+            for (int i = 0; i < cds.Length; i++)
             {
-                if (cds[i] > 0)
-                    cds[i]--;
+                if (cds[i] > 0) cds[i]--;
             }
 
-            // Hanya proses jika player sedang menahan tombol use item
-            // dan sedang memilih slot 0
-            if (!player.controlUseItem || player.selectedItem != 0)
+            if (!player.controlUseItem) continue;
+
+            // Optional: hanya aktif kalau lagi pegang slot 0
+            if (_config.RequireSelectedSlot0 && player.selectedItem != 0)
                 continue;
 
-            Item mainWeapon = player.inventory[0];
-            if (mainWeapon == null || mainWeapon.IsAir || mainWeapon.damage <= 0)
-                continue;
-
-            // Proses slot 1 dan 2
-            for (int slot = 1; slot <= 2; slot++)
+            foreach (int slot in _config.ExtraSlots)
             {
-                // Masih dalam cooldown?
-                if (cds[slot] > 0)
-                    continue;
+                if (slot < 0 || slot >= player.inventory.Length) continue;
+                if (cds[slot] > 0) continue;
 
                 Item weapon = player.inventory[slot];
-                if (weapon == null || weapon.IsAir || weapon.damage <= 0)
-                    continue;
+                if (weapon == null || weapon.IsAir || weapon.damage <= 0) continue;
 
-                // ======================
-                //  MELEE
-                // ======================
-                if (weapon.melee)
+                // ===== Cek Mana =====
+                if (_config.CheckMana && weapon.mana > 0)
+                {
+                    if (player.statMana < weapon.mana) continue;
+                }
+
+                // ===== Cek Ammo =====
+                if (_config.CheckAmmo && weapon.useAmmo > 0)
+                {
+                    if (!HasAmmo(player, weapon.useAmmo)) continue;
+                }
+
+                // ===== MELEE =====
+                if (weapon.melee && !weapon.noMelee)
                 {
                     player.itemAnimation = weapon.useAnimation;
                     player.itemAnimationMax = weapon.useAnimation;
                     player.itemTime = weapon.useTime;
-
                     NetMessage.SendData((int)PacketTypes.PlayerAnimation, -1, -1, null, index);
                 }
-                // ======================
-                //  PROJECTILE (ranged / magic / summon)
-                // ======================
+                // ===== PROJECTILE =====
                 else if (weapon.shoot > 0)
                 {
-                    Vector2 position = player.Center + new Vector2(player.direction * 20f, 0f);
-                    Vector2 velocity = new Vector2(player.direction, 0f) * weapon.shootSpeed;
+                    Vector2 position = player.Center;
+                    Vector2 velocity;
+
+                    if (_config.UsePlayerAim)
+                    {
+                        // Ikuti rotasi item / aim player
+                        float rotation = player.itemRotation;
+                        if (player.direction == -1)
+                            rotation += MathHelper.Pi;
+
+                        velocity = rotation.ToRotationVector2() * weapon.shootSpeed;
+                    }
+                    else
+                    {
+                        // Fallback: horizontal sesuai direction
+                        velocity = new Vector2(player.direction, 0f) * weapon.shootSpeed;
+                    }
+
+                    // Offset biar tidak spawn di dalam player
+                    position += Vector2.Normalize(velocity) * 20f;
 
                     int projIndex = Projectile.NewProjectile(
                         null,
@@ -118,11 +174,77 @@ public class MultiWeapon : TerrariaPlugin
                     {
                         NetMessage.SendData((int)PacketTypes.ProjectileNew, -1, -1, null, projIndex);
                     }
+
+                    // Consume mana
+                    if (_config.CheckMana && weapon.mana > 0)
+                    {
+                        player.statMana = Math.Max(0, player.statMana - weapon.mana);
+                        player.manaRegenDelay = (int)player.maxRegenDelay;
+                    }
+
+                    // Consume ammo
+                    if (_config.CheckAmmo && weapon.useAmmo > 0)
+                    {
+                        ConsumeAmmo(player, weapon.useAmmo);
+                    }
                 }
 
-                // Set cooldown sesuai useTime senjata
-                cds[slot] = Math.Max(weapon.useTime, 1);
+                // Set cooldown berdasarkan useTime item itu sendiri
+                int cd = (int)(weapon.useTime * _config.CooldownMultiplier);
+                cds[slot] = Math.Max(cd, 1);
             }
         }
+    }
+
+    private bool HasAmmo(Player player, int ammoType)
+    {
+        for (int i = 0; i < player.inventory.Length; i++)
+        {
+            Item item = player.inventory[i];
+            if (item != null && !item.IsAir && item.ammo == ammoType && item.stack > 0)
+                return true;
+        }
+        return false;
+    }
+
+    private void ConsumeAmmo(Player player, int ammoType)
+    {
+        for (int i = 0; i < player.inventory.Length; i++)
+        {
+            Item item = player.inventory[i];
+            if (item != null && !item.IsAir && item.ammo == ammoType && item.stack > 0)
+            {
+                item.stack--;
+                if (item.stack <= 0)
+                    item.TurnToAir();
+
+                // Sync slot ke client
+                NetMessage.SendData((int)PacketTypes.PlayerSlot, -1, -1, null, player.whoAmI, i);
+                break;
+            }
+        }
+    }
+
+    public class Config
+    {
+        public bool Enabled { get; set; } = true;
+
+        /// <summary>Hanya aktif jika player sedang memegang slot 0</summary>
+        public bool RequireSelectedSlot0 { get; set; } = true;
+
+        /// <summary>Slot tambahan yang ikut menyerang (selain yang sedang dipegang)</summary>
+        public int[] ExtraSlots { get; set; } = new[] { 1, 2 };
+
+        /// <summary>Apakah cek & kurangi mana sesuai item</summary>
+        public bool CheckMana { get; set; } = true;
+
+        /// <summary>Apakah cek & kurangi ammo sesuai item</summary>
+        public bool CheckAmmo { get; set; } = true;
+
+        /// <summary>Ikuti arah aim / rotasi item player</summary>
+        public bool UsePlayerAim { get; set; } = true;
+
+        /// <summary>Pengali cooldown (1.0 = normal, 0.5 = lebih cepat, 2.0 = lebih lambat)</summary>
+        public float CooldownMultiplier { get; set; } = 1.0f;
     }
 }
